@@ -38,6 +38,8 @@
     log: $("#log"),
     chart: $("#chart"),
     currentActivity: $("#currentActivity"),
+    world: $("#world"),
+    worldPrompt: $("#worldPrompt"),
 
     btnStart: $("#btnStart"),
     btnPause: $("#btnPause"),
@@ -146,6 +148,26 @@
     brightLightUntil: -1,
     nappingUntil: -1,
   };
+
+  const keys = { left:false, right:false, up:false, down:false, w:false, a:false, s:false, d:false };
+  const world = {
+    width: 800,
+    height: 450,
+    roomPadding: 24,
+    player: { x: 400, y: 280, radius: 10, speed: 140 },
+    zones: [],
+  };
+  let lastInteractAt = 0;
+  function setupWorldZones() {
+    world.zones = [
+      { name: "床", x: 40, y: 340, w: 140, h: 70, prompt: "睡觉/起床", action: () => toggleSleep() },
+      { name: "咖啡机", x: 640, y: 80, w: 100, h: 60, prompt: "喝咖啡", action: () => drinkCoffee() },
+      { name: "窗户", x: 680, y: 20, w: 80, h: 40, prompt: "强光曝露", action: () => brightLight() },
+      { name: "电视/屏幕", x: 320, y: 80, w: 140, h: 60, prompt: "切换屏幕", action: () => toggleScreen() },
+      { name: "运动区", x: 520, y: 320, w: 120, h: 80, prompt: "运动30分钟", action: () => exercise30m() },
+      { name: "沙发", x: 220, y: 320, w: 120, h: 80, prompt: "小睡20分钟", action: () => nap20m() },
+    ];
+  }
 
   // 模型更新（dt分钟）
   function updateModel(dt) {
@@ -287,6 +309,90 @@
     renderChart();
   }
 
+  // 2D 世界：检测、更新与绘制
+  function rectContainsPoint(rect, px, py) {
+    return px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h;
+  }
+  function nearestZoneInRange(range=48) {
+    const p = world.player;
+    let best = null, bestDist = Infinity;
+    for (const z of world.zones) {
+      const cx = clamp(p.x, z.x, z.x + z.w);
+      const cy = clamp(p.y, z.y, z.y + z.h);
+      const dx = p.x - cx, dy = p.y - cy;
+      const d = Math.hypot(dx, dy);
+      if (d < bestDist && d <= range) { bestDist = d; best = z; }
+    }
+    return best;
+  }
+  function interact() {
+    const now = performance.now();
+    if (now - lastInteractAt < 250) return;
+    const z = nearestZoneInRange();
+    if (z) {
+      z.action();
+      lastInteractAt = now;
+    }
+  }
+  function updateWorld(dt) {
+    const p = world.player;
+    if (!state.sleeping) {
+      let ax = 0, ay = 0;
+      if (keys.left || keys.a) ax -= 1;
+      if (keys.right || keys.d) ax += 1;
+      if (keys.up || keys.w) ay -= 1;
+      if (keys.down || keys.s) ay += 1;
+      const len = Math.hypot(ax, ay) || 1;
+      ax /= len; ay /= len;
+      p.x += ax * p.speed * dt;
+      p.y += ay * p.speed * dt;
+    }
+    const pad = world.roomPadding;
+    p.x = clamp(p.x, pad, world.width - pad);
+    p.y = clamp(p.y, pad, world.height - pad);
+    // 更新交互提示
+    const inRange = nearestZoneInRange();
+    ui.worldPrompt.textContent = inRange ? `按 E：${inRange.prompt}` : "";
+  }
+  function drawWorld() {
+    const c = ui.world;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    const w = c.width, h = c.height;
+    // 背景与房间
+    ctx.fillStyle = '#0b0f18';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#111826';
+    ctx.fillRect(16, 16, w - 32, h - 32);
+    // 区域
+    for (const z of world.zones) {
+      ctx.fillStyle = '#1f2a44';
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+      ctx.strokeStyle = '#2f3b5c';
+      ctx.strokeRect(z.x + 0.5, z.y + 0.5, z.w - 1, z.h - 1);
+      ctx.fillStyle = '#a3a9b7';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(z.name, z.x + 6, z.y + 16);
+    }
+    // 玩家
+    const p = world.player;
+    ctx.fillStyle = '#6aa0ff';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+    ctx.fill();
+    // 昼夜遮罩
+    const hour = (globalMinutes % (24*60)) / 60;
+    const isNight = hour >= 21 || hour < 6;
+    if (isNight) {
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(0,0,w,h);
+    }
+    // 时钟
+    ctx.fillStyle = '#c8d0e0';
+    ctx.font = '12px sans-serif';
+    ctx.fillText(`第${state.day}天 ${formatTime(globalMinutes)} ${state.sleeping ? '睡眠中' : ''}`, 20, 28);
+  }
+
   // 行动逻辑
   function toggleSleep() {
     state.sleeping = !state.sleeping;
@@ -332,35 +438,38 @@
   // 循环
   let lastTime = 0;
   function tick(ts) {
-    if (!state.running) { requestAnimationFrame(tick); return; }
     if (!lastTime) lastTime = ts;
     const elapsed = ts - lastTime;
     lastTime = ts;
+    const dt = Math.max(0, elapsed / 1000);
 
-    const simMinutes = Math.max(1, Math.floor((elapsed / 1000) * 60 * state.speed));
+    // 世界更新始终进行（允许暂停时移动）
+    updateWorld(dt);
 
-    for (let i = 0; i < simMinutes; i++) {
-      updateModel(1);
-
-      // 小睡到点自动醒
-      if (actionFlags.nappingUntil > 0 && globalMinutes >= actionFlags.nappingUntil) {
-        state.sleeping = false;
-        state.activity = "闲暇";
-        actionFlags.nappingUntil = -1;
-        log("小睡结束，醒来。");
-      }
-
-      // 夜间自动入睡/白天自动醒（根据阈值），但允许玩家覆盖
-      const hour = (globalMinutes % MIN_PER_DAY) / MIN_PER_HOUR;
-      if (!state.sleeping) {
-        const sleepy = state.S > 0.85 && hour >= 21;
-        if (sleepy && !state.screenOn) { state.sleeping = true; state.activity = "睡觉"; log("困倦难耐，进入睡眠。"); }
-      } else {
-        const wakeup = state.S < 0.25 && hour >= 6;
-        if (wakeup) { state.sleeping = false; state.activity = "清晨"; log("睡够了，自然醒来。"); }
+    if (state.running) {
+      const simMinutes = Math.max(1, Math.floor(dt * 60 * state.speed));
+      for (let i = 0; i < simMinutes; i++) {
+        updateModel(1);
+        // 小睡到点自动醒
+        if (actionFlags.nappingUntil > 0 && globalMinutes >= actionFlags.nappingUntil) {
+          state.sleeping = false;
+          state.activity = "闲暇";
+          actionFlags.nappingUntil = -1;
+          log("小睡结束，醒来。");
+        }
+        // 自动睡/醒
+        const hour = (globalMinutes % MIN_PER_DAY) / MIN_PER_HOUR;
+        if (!state.sleeping) {
+          const sleepy = state.S > 0.85 && hour >= 21;
+          if (sleepy && !state.screenOn) { state.sleeping = true; state.activity = "睡觉"; log("困倦难耐，进入睡眠。"); }
+        } else {
+          const wakeup = state.S < 0.25 && hour >= 6;
+          if (wakeup) { state.sleeping = false; state.activity = "清晨"; log("睡够了，自然醒来。"); }
+        }
       }
     }
 
+    drawWorld();
     renderUI();
     requestAnimationFrame(tick);
   }
@@ -384,11 +493,38 @@
     ui.btnBrightLight.addEventListener("click", brightLight);
     ui.btnScreenToggle.addEventListener("click", toggleScreen);
     ui.btnExercise.addEventListener("click", exercise30m);
+
+    window.addEventListener('keydown', (e) => {
+      const k = e.key;
+      if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," "].includes(k)) e.preventDefault();
+      if (k === 'ArrowLeft') keys.left = true;
+      if (k === 'ArrowRight') keys.right = true;
+      if (k === 'ArrowUp') keys.up = true;
+      if (k === 'ArrowDown') keys.down = true;
+      if (k === 'a' || k === 'A') keys.a = true;
+      if (k === 'd' || k === 'D') keys.d = true;
+      if (k === 'w' || k === 'W') keys.w = true;
+      if (k === 's' || k === 'S') keys.s = true;
+      if (k === 'e' || k === 'E') interact();
+      if (k === ' ') { state.running = !state.running; log(state.running ? '开始模拟。' : '暂停。'); }
+    });
+    window.addEventListener('keyup', (e) => {
+      const k = e.key;
+      if (k === 'ArrowLeft') keys.left = false;
+      if (k === 'ArrowRight') keys.right = false;
+      if (k === 'ArrowUp') keys.up = false;
+      if (k === 'ArrowDown') keys.down = false;
+      if (k === 'a' || k === 'A') keys.a = false;
+      if (k === 'd' || k === 'D') keys.d = false;
+      if (k === 'w' || k === 'W') keys.w = false;
+      if (k === 's' || k === 'S') keys.s = false;
+    });
   }
 
   // 初始化
   function init() {
     bindUI();
+    setupWorldZones();
     // 初始数据点
     updateModel(0);
     state.running = false;

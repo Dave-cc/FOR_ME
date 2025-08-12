@@ -77,3 +77,20 @@ body {
 #barCircadian { background: linear-gradient(90deg, #14b8a6, #6de7d8); }
 #barMelatonin { background: linear-gradient(90deg, #5b628a, #8e96c8); }
 #barCaffeine { background: linear-gradient(90deg, #c084fc, #f0abfc); }
+
+/* 2D world */
+canvas#world {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  background: #0b0f18;
+  border-radius: 8px;
+  image-rendering: pixelated;
+}
+.world-prompt {
+  position: relative;
+  margin-top: 6px;
+  color: var(--warn);
+  font-size: 12px;
+  min-height: 18px;
+}
