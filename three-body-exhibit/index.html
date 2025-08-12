@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>三体世界展馆 · 3D</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div class="top-bar">
+        <div class="brand">三体世界展馆</div>
+        <div class="hint">拖拽旋转 · 滚轮缩放 · 点击展品查看详情</div>
+      </div>
+
+      <div id="info-panel" class="info-panel hidden">
+        <button id="close-info" class="close">×</button>
+        <h2 id="info-title">展品</h2>
+        <p id="info-desc"></p>
+        <div class="actions">
+          <button id="btn-focus" class="primary">跳转至展品</button>
+        </div>
+      </div>
+
+      <div class="bottom-nav">
+        <button class="nav-btn" data-target="red-coast">红岸基地</button>
+        <button class="nav-btn" data-target="trisolaris">三体星系</button>
+        <button class="nav-btn" data-target="droplet">水滴</button>
+        <button class="nav-btn" data-target="sophon">智子</button>
+        <button class="nav-btn" data-target="dark-forest">黑暗森林</button>
+      </div>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
