@@ -1,0 +1,79 @@
+* { box-sizing: border-box; }
+:root {
+  --bg: #0e1116;
+  --panel: #151a22;
+  --border: #222834;
+  --text: #e6e9ef;
+  --muted: #a3a9b7;
+  --accent: #6aa0ff;
+  --good: #6de79b;
+  --warn: #ffd166;
+  --bad: #ff6b6b;
+  --sleep: #a78bfa;
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(1200px 1200px at 80% -200px, #162036, var(--bg));
+  color: var(--text);
+  font: 14px/1.5 Inter, system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+#app { max-width: 1200px; margin: 0 auto; padding: 12px; }
+
+.topbar, .bottombar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 16px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; 
+}
+.topbar .title { font-weight: 700; letter-spacing: 0.5px; }
+.topbar .meta { display: flex; gap: 16px; color: var(--muted); }
+.controls { display: flex; gap: 8px; align-items: center; }
+.controls button, .actions button, select {
+  background: #1b2230; color: var(--text); border: 1px solid var(--border);
+  padding: 8px 12px; border-radius: 8px; cursor: pointer; transition: 0.15s ease;
+}
+.controls button:hover, .actions button:hover, select:hover { filter: brightness(1.1); }
+.controls button:active, .actions button:active { transform: translateY(1px); }
+.speed select { margin-left: 6px; }
+
+.layout { display: grid; grid-template-columns: 280px 1fr 300px; gap: 12px; margin-top: 12px; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.panel h3 { margin: 0 0 8px; font-size: 15px; color: var(--muted); }
+
+.meters { display: flex; flex-direction: column; gap: 10px; }
+.meter .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.bar { height: 10px; background: #0f1320; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.fill { height: 100%; width: 0%; background: linear-gradient(90deg, #4c78ff, #6aa0ff); transition: width 0.3s ease; }
+.value { font-size: 12px; color: var(--muted); margin-top: 4px; text-align: right; }
+
+.legend { display: flex; gap: 10px; color: var(--muted); font-size: 12px; }
+.legend .lg::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; vertical-align: -1px; }
+.legend .alertness::before { background: var(--accent); }
+.legend .sleep::before { background: var(--sleep); }
+.legend .circadian::before { background: var(--good); }
+
+.log { height: 180px; overflow: auto; background: #0f1320; border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-size: 12px; }
+.log .line { color: #c8d0e0; margin: 2px 0; }
+.log .line .t { color: #8090a8; margin-right: 8px; }
+
+.actions .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.toggles { margin-top: 8px; color: var(--muted); }
+
+.schedule { color: var(--muted); font-size: 13px; }
+
+.bottombar { margin-top: 12px; color: var(--muted); font-size: 12px; }
+
+/* responsive */
+@media (max-width: 980px) {
+  .layout { grid-template-columns: 1fr; }
+}
+
+/* dynamic bar colors */
+#barHealth { background: linear-gradient(90deg, #27ae60, #6de79b); }
+#barPerformance { background: linear-gradient(90deg, #ffa534, #ffd166); }
+#barSleepPressure { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+#barCircadian { background: linear-gradient(90deg, #14b8a6, #6de7d8); }
+#barMelatonin { background: linear-gradient(90deg, #5b628a, #8e96c8); }
+#barCaffeine { background: linear-gradient(90deg, #c084fc, #f0abfc); }
