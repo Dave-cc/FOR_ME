@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI PPT工具推荐</title>
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'ZCOOL KuaiLe', cursive, sans-serif;
+            background-color: #121212;
+            color: white;
+            overflow: hidden;
+            cursor: none;
+        }
+
+        #canvas-wrapper {
+            width: 100vw;
+            height: 56.25vw; /* 16:9 aspect ratio */
+            max-height: 100vh;
+            max-width: 177.78vh;
+            margin: auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            background-color: #121212;
+        }
+
+        .fade-in {
+            opacity: 0;
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+
+        .draw-line {
+            stroke-dasharray: var(--line-length, 1000);
+            stroke-dashoffset: var(--line-length, 1000);
+            animation: drawLine 1.2s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes drawLine {
+            to { stroke-dashoffset: 0; }
+        }
+
+        /* Grid pattern */
+        .grid-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-wrapper">
+        <div class="grid-bg"></div>
+        <svg viewBox="0 0 1000 562" id="main-svg">
+            <defs>
+                <!-- Hand-drawn filter -->
+                <filter id="hand-drawn" x="-20%" y="-20%" width="140%" height="140%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="noise" />
+                    <feDisplacementMap in="SourceGraphic" in2="noise" scale="4" result="distorted" />
+                    <feMorphology operator="dilate" radius="0.5" in="distorted" result="outlined" />
+                </filter>
+
+                <!-- Arrow marker -->
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" />
+                </marker>
+            </defs>
+
+            <g id="scene-layer"></g>
+        </svg>
+    </div>
+
+    <script>
+        // Global state contract
+        window.state = {
+            currentSceneIndex: 0,
+            currentStepIndex: 0
+        };
+
+        // Helper functions
+        function createSVGIllustration(type, x, y, scale = 1, color = '#ffffff') {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('transform', `translate(${x}, ${y}) scale(${scale})`);
+
+            switch(type) {
+                case 'person':
+                    // Head
+                    const head = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    head.setAttribute('cx', '0');
+                    head.setAttribute('cy', '-20');
+                    head.setAttribute('r', '15');
+                    head.setAttribute('fill', 'none');
+                    head.setAttribute('stroke', color);
+                    head.setAttribute('stroke-width', '2');
+                    head.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Body
+                    const body = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    body.setAttribute('x1', '0');
+                    body.setAttribute('y1', '-5');
+                    body.setAttribute('x2', '0');
+                    body.setAttribute('y2', '20');
+                    body.setAttribute('stroke', color);
+                    body.setAttribute('stroke-width', '2');
+                    body.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Arms
+                    const armL = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    armL.setAttribute('x1', '-12');
+                    armL.setAttribute('y1', '0');
+                    armL.setAttribute('x2', '12');
+                    armL.setAttribute('y2', '0');
+                    armL.setAttribute('stroke', color);
+                    armL.setAttribute('stroke-width', '2');
+                    armL.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Legs
+                    const legL = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    legL.setAttribute('x1', '0');
+                    legL.setAttribute('y1', '20');
+                    legL.setAttribute('x2', '-10');
+                    legL.setAttribute('y2', '40');
+                    legL.setAttribute('stroke', color);
+                    legL.setAttribute('stroke-width', '2');
+                    legL.setAttribute('filter', 'url(#hand-drawn)');
+
+                    const legR = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    legR.setAttribute('x1', '0');
+                    legR.setAttribute('y1', '20');
+                    legR.setAttribute('x2', '10');
+                    legR.setAttribute('y2', '40');
+                    legR.setAttribute('stroke', color);
+                    legR.setAttribute('stroke-width', '2');
+                    legR.setAttribute('filter', 'url(#hand-drawn)');
+
+                    g.appendChild(head);
+                    g.appendChild(body);
+                    g.appendChild(armL);
+                    g.appendChild(legL);
+                    g.appendChild(legR);
+                    break;
+
+                case 'house':
+                    // Roof
+                    const roof = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    roof.setAttribute('points', '-30,-20 0,-50 30,-20');
+                    roof.setAttribute('fill', 'none');
+                    roof.setAttribute('stroke', color);
+                    roof.setAttribute('stroke-width', '2');
+                    roof.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // House body
+                    const houseBody = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    houseBody.setAttribute('x', '-25');
+                    houseBody.setAttribute('y', '-20');
+                    houseBody.setAttribute('width', '50');
+                    houseBody.setAttribute('height', '40');
+                    houseBody.setAttribute('fill', 'none');
+                    houseBody.setAttribute('stroke', color);
+                    houseBody.setAttribute('stroke-width', '2');
+                    houseBody.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Door
+                    const door = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    door.setAttribute('x', '-8');
+                    door.setAttribute('y', '0');
+                    door.setAttribute('width', '16');
+                    door.setAttribute('height', '20');
+                    door.setAttribute('fill', 'none');
+                    door.setAttribute('stroke', color);
+                    door.setAttribute('stroke-width', '2');
+                    door.setAttribute('filter', 'url(#hand-drawn)');
+
+                    g.appendChild(roof);
+                    g.appendChild(houseBody);
+                    g.appendChild(door);
+                    break;
+
+                case 'phone':
+                    const phoneBody = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    phoneBody.setAttribute('x', '-15');
+                    phoneBody.setAttribute('y', '-30');
+                    phoneBody.setAttribute('width', '30');
+                    phoneBody.setAttribute('height', '60');
+                    phoneBody.setAttribute('rx', '8');
+                    phoneBody.setAttribute('ry', '8');
+                    phoneBody.setAttribute('fill', 'none');
+                    phoneBody.setAttribute('stroke', color);
+                    phoneBody.setAttribute('stroke-width', '2');
+                    phoneBody.setAttribute('filter', 'url(#hand-drawn)');
+
+                    const screen = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    screen.setAttribute('x', '-12');
+                    screen.setAttribute('y', '-25');
+                    screen.setAttribute('width', '24');
+                    screen.setAttribute('height', '40');
+                    screen.setAttribute('fill', 'none');
+                    screen.setAttribute('stroke', color);
+                    screen.setAttribute('stroke-width', '1');
+                    screen.setAttribute('filter', 'url(#hand-drawn)');
+
+                    const homeBtn = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    homeBtn.setAttribute('cx', '0');
+                    homeBtn.setAttribute('cy', '20');
+                    homeBtn.setAttribute('r', '5');
+                    homeBtn.setAttribute('fill', 'none');
+                    homeBtn.setAttribute('stroke', color);
+                    homeBtn.setAttribute('stroke-width', '1');
+                    homeBtn.setAttribute('filter', 'url(#hand-drawn)');
+
+                    g.appendChild(phoneBody);
+                    g.appendChild(screen);
+                    g.appendChild(homeBtn);
+                    break;
+
+                case 'lightbulb':
+                    const bulb = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    bulb.setAttribute('cx', '0');
+                    bulb.setAttribute('cy', '-10');
+                    bulb.setAttribute('r', '20');
+                    bulb.setAttribute('fill', 'none');
+                    bulb.setAttribute('stroke', color);
+                    bulb.setAttribute('stroke-width', '2');
+                    bulb.setAttribute('filter', 'url(#hand-drawn)');
+
+                    const base = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    base.setAttribute('x', '-8');
+                    base.setAttribute('y', '10');
+                    base.setAttribute('width', '16');
+                    base.setAttribute('height', '15');
+                    base.setAttribute('fill', 'none');
+                    base.setAttribute('stroke', color);
+                    base.setAttribute('stroke-width', '2');
+                    base.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Rays
+                    for(let i = 0; i < 4; i++) {
+                        const ray = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        const angle = i * Math.PI / 2;
+                        ray.setAttribute('x1', Math.cos(angle) * 25);
+                        ray.setAttribute('y1', Math.sin(angle) * 25 - 10);
+                        ray.setAttribute('x2', Math.cos(angle) * 35);
+                        ray.setAttribute('y2', Math.sin(angle) * 35 - 10);
+                        ray.setAttribute('stroke', color);
+                        ray.setAttribute('stroke-width', '2');
+                        ray.setAttribute('filter', 'url(#hand-drawn)');
+                        g.appendChild(ray);
+                    }
+
+                    g.appendChild(bulb);
+                    g.appendChild(base);
+                    break;
+
+                case 'tree':
+                    // Trunk
+                    const trunk = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    trunk.setAttribute('x', '-5');
+                    trunk.setAttribute('y', '20');
+                    trunk.setAttribute('width', '10');
+                    trunk.setAttribute('height', '40');
+                    trunk.setAttribute('fill', 'none');
+                    trunk.setAttribute('stroke', color);
+                    trunk.setAttribute('stroke-width', '2');
+                    trunk.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Leaves
+                    const leaves = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    leaves.setAttribute('cx', '0');
+                    leaves.setAttribute('cy', '5');
+                    leaves.setAttribute('r', '25');
+                    leaves.setAttribute('fill', 'none');
+                    leaves.setAttribute('stroke', color);
+                    leaves.setAttribute('stroke-width', '2');
+                    leaves.setAttribute('filter', 'url(#hand-drawn)');
+
+                    g.appendChild(trunk);
+                    g.appendChild(leaves);
+                    break;
+
+                case 'rocket':
+                    // Body
+                    const body = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    body.setAttribute('points', '-10,20 0,-30 10,20');
+                    body.setAttribute('fill', 'none');
+                    body.setAttribute('stroke', color);
+                    body.setAttribute('stroke-width', '2');
+                    body.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Fins
+                    const finL = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    finL.setAttribute('points', '-10,20 -20,35 -5,35');
+                    finL.setAttribute('fill', 'none');
+                    finL.setAttribute('stroke', color);
+                    finL.setAttribute('stroke-width', '2');
+                    finL.setAttribute('filter', 'url(#hand-drawn)');
+
+                    const finR = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    finR.setAttribute('points', '10,20 20,35 5,35');
+                    finR.setAttribute('fill', 'none');
+                    finR.setAttribute('stroke', color);
+                    finR.setAttribute('stroke-width', '2');
+                    finR.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Flame
+                    for(let i = 0; i < 3; i++) {
+                        const flame = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        flame.setAttribute('cx', -5 + i * 5);
+                        flame.setAttribute('cy', '30');
+                        flame.setAttribute('r', '3');
+                        flame.setAttribute('fill', 'none');
+                        flame.setAttribute('stroke', color);
+                        flame.setAttribute('stroke-width', '1');
+                        flame.setAttribute('filter', 'url(#hand-drawn)');
+                        g.appendChild(flame);
+                    }
+
+                    g.appendChild(body);
+                    g.appendChild(finL);
+                    g.appendChild(finR);
+                    for(let i = 0; i < 3; i++) {
+                        g.appendChild(g.childNodes[3]); // Reorder flames to front
+                    }
+                    break;
+
+                case 'document':
+                    const doc = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    doc.setAttribute('x', '-20');
+                    doc.setAttribute('y', '-30');
+                    doc.setAttribute('width', '40');
+                    doc.setAttribute('height', '50');
+                    doc.setAttribute('rx', '5');
+                    doc.setAttribute('ry', '5');
+                    doc.setAttribute('fill', 'none');
+                    doc.setAttribute('stroke', color);
+                    doc.setAttribute('stroke-width', '2');
+                    doc.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Lines inside document
+                    for(let i = 0; i < 3; i++) {
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', '-15');
+                        line.setAttribute('y1', -20 + i * 10);
+                        line.setAttribute('x2', '15');
+                        line.setAttribute('y2', -20 + i * 10);
+                        line.setAttribute('stroke', color);
+                        line.setAttribute('stroke-width', '1');
+                        line.setAttribute('filter', 'url(#hand-drawn)');
+                        g.appendChild(line);
+                    }
+
+                    g.appendChild(doc);
+                    break;
+
+                case 'computer':
+                    const screen = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    screen.setAttribute('x', '-30');
+                    screen.setAttribute('y', '-20');
+                    screen.setAttribute('width', '60');
+                    screen.setAttribute('height', '40');
+                    screen.setAttribute('rx', '5');
+                    screen.setAttribute('ry', '5');
+                    screen.setAttribute('fill', 'none');
+                    screen.setAttribute('stroke', color);
+                    screen.setAttribute('stroke-width', '2');
+                    screen.setAttribute('filter', 'url(#hand-drawn)');
+
+                    const stand = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    stand.setAttribute('x', '-10');
+                    stand.setAttribute('y', '20');
+                    stand.setAttribute('width', '20');
+                    stand.setAttribute('height', '10');
+                    stand.setAttribute('fill', 'none');
+                    stand.setAttribute('stroke', color);
+                    stand.setAttribute('stroke-width', '2');
+                    stand.setAttribute('filter', 'url(#hand-drawn)');
+
+                    g.appendChild(screen);
+                    g.appendChild(stand);
+                    break;
+
+                case 'coffee':
+                    const cup = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    cup.setAttribute('x', '-15');
+                    cup.setAttribute('y', '-20');
+                    cup.setAttribute('width', '30');
+                    cup.setAttribute('height', '30');
+                    cup.setAttribute('rx', '5');
+                    cup.setAttribute('ry', '5');
+                    cup.setAttribute('fill', 'none');
+                    cup.setAttribute('stroke', color);
+                    cup.setAttribute('stroke-width', '2');
+                    cup.setAttribute('filter', 'url(#hand-drawn)');
+
+                    const handle = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    handle.setAttribute('d', 'M15 -10 Q25 -10 25 0 Q25 10 15 10');
+                    handle.setAttribute('fill', 'none');
+                    handle.setAttribute('stroke', color);
+                    handle.setAttribute('stroke-width', '2');
+                    handle.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Steam
+                    for(let i = 0; i < 3; i++) {
+                        const steam = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        steam.setAttribute('d', `M${-10 + i * 10} -20 Q${-5 + i * 10} -30 ${-10 + i * 10} -35`);
+                        steam.setAttribute('fill', 'none');
+                        steam.setAttribute('stroke', color);
+                        steam.setAttribute('stroke-width', '1');
+                        steam.setAttribute('filter', 'url(#hand-drawn)');
+                        g.appendChild(steam);
+                    }
+
+                    g.appendChild(cup);
+                    g.appendChild(handle);
+                    break;
+
+                case 'clock':
+                    const clock = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    clock.setAttribute('cx', '0');
+                    clock.setAttribute('cy', '0');
+                    clock.setAttribute('r', '20');
+                    clock.setAttribute('fill', 'none');
+                    clock.setAttribute('stroke', color);
+                    clock.setAttribute('stroke-width', '2');
+                    clock.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Hour hand
+                    const hourHand = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    hourHand.setAttribute('x1', '0');
+                    hourHand.setAttribute('y1', '0');
+                    hourHand.setAttribute('x2', '0');
+                    hourHand.setAttribute('y2', '-10');
+                    hourHand.setAttribute('stroke', color);
+                    hourHand.setAttribute('stroke-width', '2');
+                    hourHand.setAttribute('filter', 'url(#hand-drawn)');
+
+                    // Minute hand
+                    const minuteHand = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    minuteHand.setAttribute('x1', '0');
+                    minuteHand.setAttribute('y1', '0');
+                    minuteHand.setAttribute('x2', '8');
+                    minuteHand.setAttribute('y2', '0');
+                    minuteHand.setAttribute('stroke', color);
+                    minuteHand.setAttribute('stroke-width', '1.5');
+                    minuteHand.setAttribute('filter', 'url(#hand-drawn)');
+
+                    g.appendChild(clock);
+                    g.appendChild(hourHand);
+                    g.appendChild(minuteHand);
+                    break;
+            }
+
+            return g;
+        }
+
+        function createFlowNode(text, x, y, width = 120, height = 60, color = '#ffffff') {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', x);
+            rect.setAttribute('y', y);
+            rect.setAttribute('width', width);
+            rect.setAttribute('height', height);
+            rect.setAttribute('rx', '10');
+            rect.setAttribute('ry', '10');
+            rect.setAttribute('fill', 'none');
+            rect.setAttribute('stroke', color);
+            rect.setAttribute('stroke-width', '2');
+            rect.setAttribute('filter', 'url(#hand-drawn)');
+
+            const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textEl.setAttribute('x', x + width / 2);
+            textEl.setAttribute('y', y + height / 2);
+            textEl.setAttribute('text-anchor', 'middle');
+            textEl.setAttribute('dominant-baseline', 'middle');
+            textEl.setAttribute('font-family', "'ZCOOL KuaiLe', cursive, sans-serif");
+            textEl.setAttribute('font-size', '18');
+            textEl.setAttribute('fill', color);
+            textEl.textContent = text;
+
+            g.appendChild(rect);
+            g.appendChild(textEl);
+
+            return g;
+        }
+
+        function createArrow(x1, y1, x2, y2, color = '#ffffff', strokeWidth = 2, dashed = false) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x1);
+            line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2);
+            line.setAttribute('y2', y2);
+            line.setAttribute('stroke', color);
+            line.setAttribute('stroke-width', strokeWidth);
+            line.setAttribute('stroke-linecap', 'round');
+            line.setAttribute('marker-end', 'url(#arrowhead)');
+            if(dashed) {
+                line.setAttribute('stroke-dasharray', '8,4');
+            }
+            line.setAttribute('filter', 'url(#hand-drawn)');
+
+            // Calculate line length for draw-line animation
+            const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            line.style.setProperty('--line-length', length);
+
+            return line;
+        }
+
+        function createContainer(x, y, width, height, label = '', color = '#ffffff') {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', x);
+            rect.setAttribute('y', y);
+            rect.setAttribute('width', width);
+            rect.setAttribute('height', height);
+            rect.setAttribute('rx', '10');
+            rect.setAttribute('ry', '10');
+            rect.setAttribute('fill', 'none');
+            rect.setAttribute('stroke', color);
+            rect.setAttribute('stroke-width', '1.5');
+            rect.setAttribute('stroke-dasharray', '6,4');
+            rect.setAttribute('filter', 'url(#hand-drawn)');
+
+            if(label) {
+                const labelRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                labelRect.setAttribute('x', x + 10);
+                labelRect.setAttribute('y', y - 15);
+                labelRect.setAttribute('width', label.length * 12);
+                labelRect.setAttribute('height', '25');
+                labelRect.setAttribute('rx', '5');
+                labelRect.setAttribute('ry', '5');
+                labelRect.setAttribute('fill', '#121212');
+                labelRect.setAttribute('stroke', color);
+                labelRect.setAttribute('stroke-width', '1');
+
+                const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                labelText.setAttribute('x', x + 20);
+                labelText.setAttribute('y', y - 5);
+                labelText.setAttribute('font-family', "'ZCOOL KuaiLe', cursive, sans-serif");
+                labelText.setAttribute('font-size', '14');
+                labelText.setAttribute('fill', color);
+                labelText.textContent = label;
+
+                g.appendChild(labelRect);
+                g.appendChild(labelText);
+            }
+
+            g.appendChild(rect);
+
+            return g;
+        }
+
+        function createDataBar(x, y, width, maxWidth, label, value, color = '#ffffff') {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+            // Background track
+            const track = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            track.setAttribute('x', x);
+            track.setAttribute('y', y);
+            track.setAttribute('width', maxWidth);
+            track.setAttribute('height', '20');
+            track.setAttribute('rx', '10');
+            track.setAttribute('ry', '10');
+            track.setAttribute('fill', 'none');
+            track.setAttribute('stroke', 'rgba(255,255,255,0.2)');
+            track.setAttribute('stroke-width', '1');
+            track.setAttribute('filter', 'url(#hand-drawn)');
+
+            // Data bar
+            const barWidth = (value / 100) * maxWidth;
+            const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            bar.setAttribute('x', x);
+            bar.setAttribute('y', y);
+            bar.setAttribute('width', barWidth);
+            bar.setAttribute('height', '20');
+            bar.setAttribute('rx', '10');
+            bar.setAttribute('ry', '10');
+            bar.setAttribute('fill', 'none');
+            bar.setAttribute('stroke', color);
+            bar.setAttribute('stroke-width', '2');
+            bar.setAttribute('filter', 'url(#hand-drawn)');
+
+            // Label
+            const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textEl.setAttribute('x', x + maxWidth + 10);
+            textEl.setAttribute('y', y + 14);
+            textEl.setAttribute('font-family', "'ZCOOL KuaiLe', cursive, sans-serif");
+            textEl.setAttribute('font-size', '16');
+            textEl.setAttribute('fill', color);
+            textEl.textContent = `${label} (${value}%)`;
+
+            g.appendChild(track);
+            g.appendChild(bar);
+            g.appendChild(textEl);
+
+            return g;
+        }
+
+        function createText(text, x, y, size = 24, color = '#ffffff', anchor = 'start') {
+            const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textEl.setAttribute('x', x);
+            textEl.setAttribute('y', y);
+            textEl.setAttribute('font-family', "'ZCOOL KuaiLe', cursive, sans-serif");
+            textEl.setAttribute('font-size', size);
+            textEl.setAttribute('fill', color);
+            textEl.setAttribute('text-anchor', anchor);
+            textEl.textContent = text;
+
+            return textEl;
+        }
+
+        function createEmojiIcon(emoji, x, y, size = 24) {
+            const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textEl.setAttribute('x', x);
+            textEl.setAttribute('y', y);
+            textEl.setAttribute('font-size', size);
+            textEl.setAttribute('text-anchor', 'middle');
+            textEl.setAttribute('dominant-baseline', 'middle');
+            textEl.textContent = emoji;
+
+            return textEl;
+        }
+
+        function createDivider(x1, y1, x2, y2, color = 'rgba(255,255,255,0.3)', dashed = false) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x1);
+            line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2);
+            line.setAttribute('y2', y2);
+            line.setAttribute('stroke', color);
+            line.setAttribute('stroke-width', '1.5');
+            if(dashed) {
+                line.setAttribute('stroke-dasharray', '6,4');
+            }
+            line.setAttribute('filter', 'url(#hand-drawn)');
+
+            return line;
+        }
+
+        // Scenes data
+        const scenes = [
+            {
+                title: "AI PPT工具推荐",
+                template: "spotlight",
+                stepRhythm: "reveal",
+                maxSteps: 3,
+                render: function(layer, currentStep, isNewScene) {
+                    if(isNewScene || currentStep >= 0) {
+                        // Title
+                        const title = createText("AI PPT工具推荐", 500, 50, 40, '#ffffff', 'middle');
+                        title.classList.add('fade-in');
+                        layer.appendChild(title);
+                    }
+
+                    if(currentStep >= 1) {
+                        // Main visual - computer with documents
+                        const computer = createSVGIllustration('computer', 500, 250, 2, '#74b9ff');
+                        computer.classList.add('fade-in');
+                        layer.appendChild(computer);
+
+                        // Document icons
+                        const doc1 = createSVGIllustration('document', 450, 200, 0.8, '#a29bfe');
+                        doc1.classList.add('fade-in');
+                        doc1.style.animationDelay = '0.1s';
+                        layer.appendChild(doc1);
+
+                        const doc2 = createSVGIllustration('document', 550, 200, 0.8, '#55efc4');
+                        doc2.classList.add('fade-in');
+                        doc2.style.animationDelay = '0.2s';
+                        layer.appendChild(doc2);
+                    }
+
+                    if(currentStep >= 2) {
+                        // Subtitle
+                        const subtitle = createText("让AI帮你快速制作专业PPT", 500, 350, 24, '#a29bfe', 'middle');
+                        subtitle.classList.add('fade-in');
+                        subtitle.style.animationDelay = '0.3s';
+                        layer.appendChild(subtitle);
+                    }
+                }
+            },
+            {
+                title: "NotebookLM",
+                template: "spotlight",
+                stepRhythm: "build_up",
+                maxSteps: 4,
+                render: function(layer, currentStep, isNewScene) {
+                    if(isNewScene || currentStep >= 0) {
+                        // Title
+                        const title = createText("NotebookLM", 500, 50, 40, '#74b9ff', 'middle');
+                        title.classList.add('fade-in');
+                        layer.appendChild(title);
+                    }
+
+                    if(currentStep >= 1) {
+                        // Main icon - document
+                        const doc = createSVGIllustration('document', 500, 200, 2, '#74b9ff');
+                        doc.classList.add('fade-in');
+                        layer.appendChild(doc);
+                    }
+
+                    if(currentStep >= 2) {
+                        // Feature text 1
+                        const feature1 = createText("自动提炼框架", 350, 280, 22, '#a29bfe', 'middle');
+                        feature1.classList.add('fade-in');
+                        feature1.style.animationDelay = '0.1s';
+                        layer.appendChild(feature1);
+
+                        // Arrow
+                        const arrow1 = createArrow(450, 250, 380, 270, '#a29bfe', 2, false);
+                        arrow1.classList.add('draw-line');
+                        arrow1.style.animationDelay = '0.2s';
+                        layer.appendChild(arrow1);
+                    }
+
+                    if(currentStep >= 3) {
+                        // Feature text 2
+                        const feature2 = createText("直接生成PPT草稿", 650, 280, 22, '#55efc4', 'middle');
+                        feature2.classList.add('fade-in');
+                        feature2.style.animationDelay = '0.3s';
+                        layer.appendChild(feature2);
+
+                        // Arrow
+                        const arrow2 = createArrow(550, 250, 620, 270, '#55efc4', 2, false);
+                        arrow2.classList.add('draw-line');
+                        arrow2.style.animationDelay = '0.4s';
+                        layer.appendChild(arrow2);
+
+                        // Logic indicator
+                        const logic = createText("逻辑性强", 500, 350, 20, '#ffeaa7', 'middle');
+                        logic.classList.add('fade-in');
+                        logic.style.animationDelay = '0.5s';
+                        layer.appendChild(logic);
+                    }
+                }
+            },
+            {
+                title: "GenFlow",
+                template: "spotlight",
+                stepRhythm: "reveal",
+                maxSteps: 3,
+                render: function(layer, currentStep, isNewScene) {
+                    if(isNewScene || currentStep >= 0) {
+                        // Title
+                        const title = createText("GenFlow", 500, 50, 40, '#a29bfe', 'middle');
+                        title.classList.add('fade-in');
+                        layer.appendChild(title);
+                    }
+
+                    if(currentStep >= 1) {
+                        // Clock icon
+                        const clock = createSVGIllustration('clock', 400, 200, 1.5, '#a29bfe');
+                        clock.classList.add('fade-in');
+                        layer.appendChild(clock);
+
+                        // Coffee icon
+                        const coffee = createSVGIllustration('coffee', 600, 200, 1.5, '#fdcb6e');
+                        coffee.classList.add('fade-in');
+                        coffee.style.animationDelay = '0.1s';
+                        layer.appendChild(coffee);
+                    }
+
+                    if(currentStep >= 2) {
+                        // Description
+                        const desc1 = createText("速度快 - 等咖啡的时间", 400, 300, 20, '#a29bfe', 'middle');
+                        desc1.classList.add('fade-in');
+                        desc1.style.animationDelay = '0.2s';
+                        layer.appendChild(desc1);
+
+                        const desc2 = createText("导出不乱码", 600, 300, 20, '#fdcb6e', 'middle');
+                        desc2.classList.add('fade-in');
+                        desc2.style.animationDelay = '0.3s';
+                        layer.appendChild(desc2);
+
+                        const desc3 = createText("适合紧急情况", 500, 350, 24, '#ff7675', 'middle');
+                        desc3.classList.add('fade-in');
+                        desc3.style.animationDelay = '0.4s';
+                        layer.appendChild(desc3);
+                    }
+                }
+            },
+            {
+                title: "Agnes",
+                template: "versus",
+                stepRhythm: "compare",
+                maxSteps: 3,
+                render: function(layer, currentStep, isNewScene) {
+                    if(isNewScene || currentStep >= 0) {
+                        // Title
+                        const title = createText("Agnes - 跨平台编辑", 500, 50, 40, '#ffffff', 'middle');
+                        title.classList.add('fade-in');
+                        layer.appendChild(title);
+
+                        // Divider
+                        const divider = createDivider(500, 80, 500, 480, '#ffffff', true);
+                        divider.classList.add('draw-line');
+                        layer.appendChild(divider);
+
+                        // VS text
+                        const vsText = createText("跨设备", 500, 280, 32, '#ff7675', 'middle');
+                        vsText.classList.add('fade-in');
+                        vsText.style.animationDelay = '0.15s';
+                        layer.appendChild(vsText);
+                    }
+
+                    if(currentStep >= 1) {
+                        // Left side - Computer
+                        const compTitle = createText("电脑端", 250, 120, 28, '#74b9ff', 'middle');
+                        compTitle.classList.add('fade-in');
+                        layer.appendChild(compTitle);
+
+                        const compIll = createSVGIllustration('computer', 250, 220, 1.2, '#74b9ff');
+                        compIll.classList.add('fade-in');
+                        compIll.style.animationDelay = '0.1s';
+                        layer.appendChild(compIll);
+
+                        const compDesc = createText("白天编辑", 250, 300, 18, '#74b9ff', 'middle');
+                        compDesc.classList.add('fade-in');
+                        compDesc.style.animationDelay = '0.2s';
+                        layer.appendChild(compDesc);
+                    }
+
+                    if(currentStep >= 2) {
+                        // Right side - Phone
+                        const phoneTitle = createText("手机端", 750, 120, 28, '#55efc4', 'middle');
+                        phoneTitle.classList.add('fade-in');
+                        layer.appendChild(phoneTitle);
+
+                        const phoneIll = createSVGIllustration('phone', 750, 220, 1.2, '#55efc4');
+                        phoneIll.classList.add('fade-in');
+                        phoneIll.style.animationDelay = '0.1s';
+                        layer.appendChild(phoneIll);
+
+                        const phoneDesc = createText("晚上修改", 750, 300, 18, '#55efc4', 'middle');
+                        phoneDesc.classList.add('fade-in');
+                        phoneDesc.style.animationDelay = '0.2s';
+                        layer.appendChild(phoneDesc);
+
+                        // Connection arrow
+                        const connection = createArrow(350, 250, 650, 250, '#fdcb6e', 2, true);
+                        connection.classList.add('draw-line');
+                        connection.style.animationDelay = '0.3s';
+                        layer.appendChild(connection);
+
+                        const flexDesc = createText("灵活便捷", 500, 350, 24, '#ffeaa7', 'middle');
+                        flexDesc.classList.add('fade-in');
+                        flexDesc.style.animationDelay = '0.4s';
+                        layer.appendChild(flexDesc);
+                    }
+                }
+            },
+            {
+                title: "Gamma",
+                template: "spotlight",
+                stepRhythm: "reveal",
+                maxSteps: 3,
+                render: function(layer, currentStep, isNewScene) {
+                    if(isNewScene || currentStep >= 0) {
+                        // Title
+                        const title = createText("Gamma", 500, 50, 40, '#55efc4', 'middle');
+                        title.classList.add('fade-in');
+                        layer.appendChild(title);
+                    }
+
+                    if(currentStep >= 1) {
+                        // Lightbulb icon
+                        const bulb = createSVGIllustration('lightbulb', 500, 200, 2, '#55efc4');
+                        bulb.classList.add('fade-in');
+                        layer.appendChild(bulb);
+                    }
+
+                    if(currentStep >= 2) {
+                        // Features
+                        const feat1 = createText("自动结构设计", 350, 300, 20, '#74b9ff', 'middle');
+                        feat1.classList.add('fade-in');
+                        feat1.style.animationDelay = '0.1s';
+                        layer.appendChild(feat1);
+
+                        const feat2 = createText("智能找图", 500, 300, 20, '#a29bfe', 'middle');
+                        feat2.classList.add('fade-in');
+                        feat2.style.animationDelay = '0.2s';
+                        layer.appendChild(feat2);
+
+                        const feat3 = createText("精美排版", 650, 300, 20, '#55efc4', 'middle');
+                        feat3.classList.add('fade-in');
+                        feat3.style.animationDelay = '0.3s';
+                        layer.appendChild(feat3);
+
+                        const comfort = createText("适合不想动脑时", 500, 350, 24, '#ffeaa7', 'middle');
+                        comfort.classList.add('fade-in');
+                        comfort.style.animationDelay = '0.4s';
+                        layer.appendChild(comfort);
+                    }
+                }
+            },
+            {
+                title: "Kimi国际版",
+                template: "flow",
+                stepRhythm: "build_up",
+                maxSteps: 4,
+                render: function(layer, currentStep, isNewScene) {
+                    if(isNewScene || currentStep >= 0) {
+                        // Title
+                        const title = createText("Kimi国际版", 500, 50, 40, '#fdcb6e', 'middle');
+                        title.classList.add('fade-in');
+                        layer.appendChild(title);
+                    }
+
+                    if(currentStep >= 1) {
+                        // First node - Text
+                        const node1 = createFlowNode("文本输入", 100, 200, 100, 50, '#74b9ff');
+                        node1.classList.add('fade-in');
+                        layer.appendChild(node1);
+                    }
+
+                    if(currentStep >= 2) {
+                        // Second node - Images
+                        const node2 = createFlowNode("图片处理", 300, 200, 100, 50, '#a29bfe');
+                        node2.classList.add('fade-in');
+                        node2.style.animationDelay = '0.15s';
+                        layer.appendChild(node2);
+
+                        // Arrow between nodes
+                        const arrow1 = createArrow(200, 225, 300, 225, '#ffffff', 2, false);
+                        arrow1.classList.add('draw-line');
+                        arrow1.style.animationDelay = '0.3s';
+                        layer.appendChild(arrow1);
+                    }
+
+                    if(currentStep >= 3) {
+                        // Third node - Style
+                        const node3 = createFlowNode("样式调整", 500, 200, 100, 50, '#55efc4');
+                        node3.classList.add('fade-in');
+                        node3.style.animationDelay = '0.3s';
+                        layer.appendChild(node3);
+
+                        // Arrow between nodes
+                        const arrow2 = createArrow(400, 225, 500, 225, '#ffffff', 2, false);
+                        arrow2.classList.add('draw-line');
+                        arrow2.style.animationDelay = '0.45s';
+                        layer.appendChild(arrow2);
+
+                        // Fourth node - Export
+                        const node4 = createFlowNode("在线编辑", 700, 200, 100, 50, '#fdcb6e');
+                        node4.classList.add('fade-in');
+                        node4.style.animationDelay = '0.45s';
+                        layer.appendChild(node4);
+
+                        // Arrow between nodes
+                        const arrow3 = createArrow(600, 225, 700, 225, '#ffffff', 2, false);
+                        arrow3.classList.add('draw-line');
+                        arrow3.style.animationDelay = '0.6s';
+                        layer.appendChild(arrow3);
+
+                        // Note about needing special access
+                        const note = createText("(需特殊网络环境)", 700, 270, 16, '#ff7675', 'middle');
+                        note.classList.add('fade-in');
+                        note.style.animationDelay = '0.7s';
+                        layer.appendChild(note);
+                    }
+                }
+            },
+            {
+                title: "扣子空间",
+                template: "spotlight",
+                stepRhythm: "build_up",
+                maxSteps: 4,
+                render: function(layer, currentStep, isNewScene) {
+                    if(isNewScene || currentStep >= 0) {
+                        // Title
+                        const title = createText("扣子空间", 500, 50, 40, '#ffeaa7', 'middle');
+                        title.classList.add('fade-in');
+                        layer.appendChild(title);
+                    }
+
+                    if(currentStep >= 1) {
+                        // Template icon - document with template
+                        const doc = createSVGIllustration('document', 500, 200, 2, '#ffeaa7');
+                        doc.classList.add('fade-in');
+                        layer.appendChild(doc);
+                    }
+
+                    if(currentStep >= 2) {
+                        // Feature text 1
+                        const feature1 = createText("支持上传模板", 350, 300, 22, '#74b9ff', 'middle');
+                        feature1.classList.add('fade-in');
+                        feature1.style.animationDelay = '0.1s';
+                        layer.appendChild(feature1);
+
+                        // Arrow
+                        const arrow1 = createArrow(450, 250, 380, 290, '#74b9ff', 2, false);
+                        arrow1.classList.add('draw-line');
+                        arrow1.style.animationDelay = '0.2s';
+                        layer.appendChild(arrow1);
+                    }
+
+                    if(currentStep >= 3) {
+                        // Feature text 2
+                        const feature2 = createText("模仿现有风格", 650, 300, 22, '#a29bfe', 'middle');
+                        feature2.classList.add('fade-in');
+                        feature2.style.animationDelay = '0.3s';
+                        layer.appendChild(feature2);
+
+                        // Arrow
+                        const arrow2 = createArrow(550, 250, 620, 290, '#a29bfe', 2, false);
+                        arrow2.classList.add('draw-line');
+                        arrow2.style.animationDelay = '0.4s';
+                        layer.appendChild(arrow2);
+
+                        // Business indicator
+                        const business = createText("适合企业使用", 500, 350, 24, '#55efc4', 'middle');
+                        business.classList.add('fade-in');
+                        business.style.animationDelay = '0.5s';
+                        layer.appendChild(business);
+                    }
+                }
+            },
+            {
+                title: "Genspark & Skywork",
+                template: "versus",
+                stepRhythm: "compare",
+                maxSteps: 3,
+                render: function(layer, currentStep, isNewScene) {
+                    if(isNewScene || currentStep >= 0) {
+                        // Title
+                        const title = createText("Genspark & Skywork", 500, 50, 40, '#ffffff', 'middle');
+                        title.classList.add('fade-in');
+                        layer.appendChild(title);
+
+                        // Divider
+                        const divider = createDivider(500, 80, 500, 480, '#ffffff', true);
+                        divider.classList.add('draw-line');
+                        layer.appendChild(divider);
+
+                        // VS text
+                        const vsText = createText("稳健型", 500, 280, 32, '#ff7675', 'middle');
+                        vsText.classList.add('fade-in');
+                        vsText.style.animationDelay = '0.15s';
+                        layer.appendChild(vsText);
+                    }
+
+                    if(currentStep >= 1) {
+                        // Left side - Genspark
+                        const genTitle = createText("Genspark", 250, 120, 28, '#74b9ff', 'middle');
+                        genTitle.classList.add('fade-in');
+                        layer.appendChild(genTitle);
+
+                        const genDesc1 = createText("结构稳固", 250, 160, 20, '#74b9ff', 'middle');
+                        genDesc1.classList.add('fade-in');
+                        genDesc1.style.animationDelay = '0.1s';
+                        layer.appendChild(genDesc1);
+
+                        const genDesc2 = createText("适合工作场景", 250, 190, 20, '#74b9ff', 'middle');
+                        genDesc2.classList.add('fade-in');
+                        genDesc2.style.animationDelay = '0.2s';
+                        layer.appendChild(genDesc2);
+
+                        const rocket = createSVGIllustration('rocket', 250, 280, 1.2, '#74b9ff');
+                        rocket.classList.add('fade-in');
+                        rocket.style.animationDelay = '0.3s';
+                        layer.appendChild(rocket);
+                    }
+
+                    if(currentStep >= 2) {
+                        // Right side - Skywork
+                        const skyTitle = createText("Skywork", 750, 120, 28, '#55efc4', 'middle');
+                        skyTitle.classList.add('fade-in');
+                        layer.appendChild(skyTitle);
+
+                        const skyDesc1 = createText("逻辑深度好", 750, 160, 20, '#55efc4', 'middle');
+                        skyDesc1.classList.add('fade-in');
+                        skyDesc1.style.animationDelay = '0.1s';
+                        layer.appendChild(skyDesc1);
+
+                        const skyDesc2 = createText("输出稳定", 750, 190, 20, '#55efc4', 'middle');
+                        skyDesc2.classList.add('fade-in');
+                        skyDesc2.style.animationDelay = '0.2s';
+                        layer.appendChild(skyDesc2);
+
+                        const tree = createSVGIllustration('tree', 750, 280, 1.2, '#55efc4');
+                        tree.classList.add('fade-in');
+                        tree.style.animationDelay = '0.3s';
+                        layer.appendChild(tree);
+
+                        // Comparison note
+                        const note = createText("稳健输出型", 500, 350, 24, '#ffeaa7', 'middle');
+                        note.classList.add('fade-in');
+                        note.style.animationDelay = '0.4s';
+                        layer.appendChild(note);
+                    }
+                }
+            },
+            {
+                title: "总结",
+                template: "data_reveal",
+                stepRhythm: "reveal",
+                maxSteps: 3,
+                render: function(layer, currentStep, isNewScene) {
+                    if(isNewScene || currentStep >= 0) {
+                        // Title
+                        const title = createText("AI PPT工具总结", 500, 50, 40, '#ffffff', 'middle');
+                        title.classList.add('fade-in');
+                        layer.appendChild(title);
+                    }
+
+                    if(currentStep >= 1) {
+                        // Data bars showing different features
+                        const bar1 = createDataBar(150, 180, 200, 400, "速度", 85, '#74b9ff');
+                        bar1.classList.add('fade-in');
+                        layer.appendChild(bar1);
+
+                        const bar2 = createDataBar(150, 230, 320, 400, "智能", 90, '#a29bfe');
+                        bar2.classList.add('fade-in');
+                        bar2.style.animationDelay = '0.1s';
+                        layer.appendChild(bar2);
+
+                        const bar3 = createDataBar(150, 280, 280, 400, "易用", 80, '#55efc4');
+                        bar3.classList.add('fade-in');
+                        bar3.style.animationDelay = '0.2s';
+                        layer.appendChild(bar3);
+
+                        const bar4 = createDataBar(150, 330, 360, 400, "稳定性", 75, '#fdcb6e');
+                        bar4.classList.add('fade-in');
+                        bar4.style.animationDelay = '0.3s';
+                        layer.appendChild(bar4);
+                    }
+
+                    if(currentStep >= 2) {
+                        // Summary text
+                        const summary = createText("选择最适合你需求的工具", 500, 400, 28, '#ffeaa7', 'middle');
+                        summary.classList.add('fade-in');
+                        summary.style.animationDelay = '0.3s';
+                        layer.appendChild(summary);
+
+                        const insight = createText("提升工作效率，释放创造力", 500, 440, 20, '#55efc4', 'middle');
+                        insight.classList.add('fade-in');
+                        insight.style.animationDelay = '0.4s';
+                        layer.appendChild(insight);
+                    }
+                }
+            }
+        ];
+
+        // Render function
+        function renderScene(isNewScene) {
+            const layer = document.getElementById('scene-layer');
+
+            // Clear scene if it's a new scene
+            if(isNewScene) {
+                while(layer.firstChild) {
+                    layer.removeChild(layer.firstChild);
+                }
+            }
+
+            // Get current scene
+            const currentScene = scenes[window.state.currentSceneIndex];
+            if(currentScene) {
+                currentScene.render(layer, window.state.currentStepIndex, isNewScene);
+            }
+        }
+
+        // Next step function
+        function nextStep() {
+            const currentScene = scenes[window.state.currentSceneIndex];
+            if(!currentScene) return;
+
+            // Check if we're at the end of the current step
+            if(window.state.currentStepIndex < currentScene.maxSteps - 1) {
+                window.state.currentStepIndex++;
+            } else {
+                // Move to next scene
+                if(window.state.currentSceneIndex < scenes.length - 1) {
+                    window.state.currentSceneIndex++;
+                    window.state.currentStepIndex = 0;
+                } else {
+                    // Loop back to first scene
+                    window.state.currentSceneIndex = 0;
+                    window.state.currentStepIndex = 0;
+                }
+            }
+
+            // Render the new state
+            renderScene(window.state.currentStepIndex === 0);
+        }
+
+        // Set up event listeners
+        document.addEventListener('click', function(e) {
+            const wrapper = document.getElementById('canvas-wrapper');
+            const rect = wrapper.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+
+            // Right 75% area for next, left 25% for previous
+            if(clickX > rect.width * 0.75) {
+                nextStep();
+            } else if(clickX < rect.width * 0.25) {
+                // Go back to previous step
+                if(window.state.currentStepIndex > 0) {
+                    window.state.currentStepIndex--;
+                } else if(window.state.currentSceneIndex > 0) {
+                    // Go to previous scene
+                    window.state.currentSceneIndex--;
+                    // Set step to the max steps of the previous scene
+                    window.state.currentStepIndex = scenes[window.state.currentSceneIndex].maxSteps - 1;
+                }
+                renderScene(false);
+            } else {
+                nextStep();
+            }
+        });
+
+        // Keyboard controls
+        document.addEventListener('keydown', function(e) {
+            if(e.key === 'ArrowRight') {
+                nextStep();
+            } else if(e.key === 'ArrowLeft') {
+                // Go back to previous step
+                if(window.state.currentStepIndex > 0) {
+                    window.state.currentStepIndex--;
+                } else if(window.state.currentSceneIndex > 0) {
+                    // Go to previous scene
+                    window.state.currentSceneIndex--;
+                    // Set step to the max steps of the previous scene
+                    window.state.currentStepIndex = scenes[window.state.currentSceneIndex].maxSteps - 1;
+                }
+                renderScene(false);
+            }
+        });
+
+        // Initialize
+        window.renderScene = renderScene;
+        window.nextStep = nextStep;
+
+        // Start the presentation
+        renderScene(true);
+    </script>
+</body>
+</html>
